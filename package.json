@@ -8,7 +8,21 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@headlessui/vue": "^1.7.23",
+    "@sendgrid/mail": "^8.1.4",
+    "axios": "^1.7.7",
+    "bcrypt": "^5.1.1",
     "core-js": "^3.8.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "jspdf": "^2.5.2",
+    "mongoose": "^8.7.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.15",
+    "pdfmake": "^0.2.14",
+    "pinia": "^2.2.4",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3",
     "vuex": "^4.0.0"
@@ -21,9 +35,12 @@
     "@vue/cli-plugin-router": "~5.0.0",
     "@vue/cli-plugin-vuex": "~5.0.0",
     "@vue/cli-service": "~5.0.0",
+    "autoprefixer": "^10.4.20",
     "eslint": "^7.32.0",
     "eslint-plugin-vue": "^8.0.3",
+    "postcss": "^8.4.47",
     "sass": "^1.32.7",
-    "sass-loader": "^12.0.0"
+    "sass-loader": "^12.0.0",
+    "tailwindcss": "^3.4.14"
   }
 }
