@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .nav-link {
+    @apply py-2 text-sm  my-0  flex items-center whitespace-nowrap px-4 transition-colors;
+  }
+}
