@@ -41,7 +41,7 @@
             <div class="flex justify-between items-center">
               <button
                 @click="editQuiz(quiz)"
-                class="text-blue-600 hover:text-blue-800"
+                class="text-flat-blue hover:text-blue-800"
               >
                 Editează
               </button>
