@@ -52,7 +52,9 @@
       <!-- Recent Activity & Quick Actions -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Recent Activity -->
-        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 max-h-96 overflow-y-scroll">
+        <div class="[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300
+  dark:[&::-webkit-scrollbar-track]:bg-white
+  dark:[&::-webkit-scrollbar-thumb]:bg-neutral-200 lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 max-h-96 overflow-y-scroll">
           <div class="p-6">
             <h2 class="text-lg font-medium text-gray-900 mb-4">Activitate Recentă</h2>
             <div v-if="recentActivity.length === 0" class="text-center py-8 text-gray-500">
