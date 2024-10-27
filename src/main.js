@@ -13,9 +13,18 @@ app.use(
     authorizationParams: {
       redirect_uri: window.location.origin,
       audience: process.env.VUE_APP_AUTH0_AUDIENCE,
+      scope: "openid profile email",
     },
   })
 );
+
+// Pentru debug
+console.log("Auth0 Config:", {
+  domain: process.env.VUE_APP_AUTH0_DOMAIN,
+  clientId: process.env.VUE_APP_AUTH0_CLIENT_ID,
+  redirect_uri: window.location.origin,
+  audience: process.env.VUE_APP_AUTH0_AUDIENCE,
+});
 
 app.use(router);
 app.mount("#app");
