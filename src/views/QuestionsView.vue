@@ -23,101 +23,87 @@
         <div class="p-6 space-y-4">
           <div v-for="question in questions" :key="question._id"
             class="border rounded-lg p-4 hover:shadow-md transition-all">
-        
-              <div class="flex justify-between items-start">
-                <div class="flex-1">
-                  <h3 class="font-medium text-lg mb-2">{{ question.text }}</h3>
-                  <div class="space-y-2 text-sm text-gray-600">
-                    <p><span class="font-medium">Feedback Da:</span> {{ question.feedbackYes }}</p>
-                    <p><span class="font-medium">Feedback Nu:</span> {{ question.feedbackNo }}</p>
-                  </div>
+
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <h3 class="font-medium text-left text-lg mb-2">{{ question.text }}</h3>
+                <div class="space-y-2 text-sm text-gray-600">
+                  <p><span class="font-medium">Feedback Da:</span> {{ question.feedbackYes }}</p>
+                  <p><span class="font-medium">Feedback Nu:</span> {{ question.feedbackNo }}</p>
                 </div>
-                <div class="flex space-x-2 ml-4">
-                  <button @click="openEditModal(question)"
-                    class="text-blue-600 hover:text-blue-800 px-3 py-1 rounded-md hover:bg-blue-50 transition-all">
-                    <span class="text-sm">Editează</span>
-                  </button>
-                  <button @click="confirmDelete(question)"
-                    class="text-red-600 hover:text-red-800 px-3 py-1 rounded-md hover:bg-red-50 transition-all">
-                    <span class="text-sm">Șterge</span>
-                  </button>
-                </div>
+              </div>
+              <div class="flex space-x-2 ml-4">
+                <button @click="openEditModal(question)"
+                  class="text-blue-600 hover:text-blue-800 px-3 py-1 rounded-md hover:bg-blue-50 transition-all">
+                  <span class="text-sm">Editează</span>
+                </button>
+                <button @click="confirmDelete(question)"
+                  class="text-red-600 hover:text-red-800 px-3 py-1 rounded-md hover:bg-red-50 transition-all">
+                  <span class="text-sm">Șterge</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- No questions state -->
-        <div v-else class="text-center py-12 bg-white shadow rounded-lg">
-          <p class="text-gray-600">Nu există întrebări încă. Începe prin a adăuga una!</p>
+      <!-- No questions state -->
+      <div v-else class="text-center py-12 bg-white shadow rounded-lg">
+        <p class="text-gray-600">Nu există întrebări încă. Începe prin a adăuga una!</p>
+      </div>
+
+      <BaseModal v-if="showModal" @close="closeModal">
+        <template #header>
+          <h3 class="text-lg font-medium">
+            {{ editingQuestion ? 'Editează Întrebarea' : 'Adaugă Întrebare Nouă' }}
+          </h3>
+        </template>
+
+        <!-- Conținutul modalului vine aici -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Întrebare
+            </label>
+            <input v-model="currentQuestion.text" type="text"
+              class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+              placeholder="Introdu întrebarea..." />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Feedback pentru Da
+            </label>
+            <textarea v-model="currentQuestion.feedbackYes" rows="3"
+              class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+              placeholder="Feedback pentru răspuns pozitiv..."></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Feedback pentru Nu
+            </label>
+            <textarea v-model="currentQuestion.feedbackNo" rows="3"
+              class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+              placeholder="Feedback pentru răspuns negativ..."></textarea>
+          </div>
         </div>
 
-        <BaseModal v-if="showModal" @close="closeModal">
-  <template #header>
-    <h3 class="text-lg font-medium">
-      {{ editingQuestion ? 'Editează Întrebarea' : 'Adaugă Întrebare Nouă' }}
-    </h3>
-  </template>
-
-  <!-- Conținutul modalului vine aici -->
-  <div class="space-y-4">
-    <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">
-        Întrebare
-      </label>
-      <input 
-        v-model="currentQuestion.text"
-        type="text"
-        class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-        placeholder="Introdu întrebarea..."
-      />
-    </div>
-
-    <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">
-        Feedback pentru Da
-      </label>
-      <textarea 
-        v-model="currentQuestion.feedbackYes"
-        rows="3"
-        class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-        placeholder="Feedback pentru răspuns pozitiv..."
-      ></textarea>
-    </div>
-
-    <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">
-        Feedback pentru Nu
-      </label>
-      <textarea 
-        v-model="currentQuestion.feedbackNo"
-        rows="3"
-        class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-        placeholder="Feedback pentru răspuns negativ..."
-      ></textarea>
+        <template #footer>
+          <div class="flex justify-end space-x-3">
+            <button @click="closeModal"
+              class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+              Anulează
+            </button>
+            <button @click="saveQuestion" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+              :disabled="isLoading">
+              {{ isLoading ? 'Se salvează...' : (editingQuestion ? 'Salvează' : 'Adaugă') }}
+            </button>
+          </div>
+        </template>
+      </BaseModal>
     </div>
   </div>
-
-  <template #footer>
-    <div class="flex justify-end space-x-3">
-      <button 
-        @click="closeModal"
-        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-      >
-        Anulează
-      </button>
-      <button 
-        @click="saveQuestion"
-        class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
-        :disabled="isLoading"
-      >
-        {{ isLoading ? 'Se salvează...' : (editingQuestion ? 'Salvează' : 'Adaugă') }}
-      </button>
-    </div>
-  </template>
-</BaseModal>
-      </div>
-    </div>
 </template>
 
 <script setup>
@@ -217,23 +203,23 @@ const saveQuestion = async () => {
 
     const config = await getAuthHeaders()
     config.headers['Content-Type'] = 'application/json'
-    
+
     if (editingQuestion.value) {
       const response = await axios.put(
-        `${API_URL}/questions/${editingQuestion.value}`, 
+        `${API_URL}/questions/${editingQuestion.value}`,
         questionData,
         config
       )
       console.log('Update response:', response.data)
     } else {
       const response = await axios.post(
-        `${API_URL}/questions`, 
+        `${API_URL}/questions`,
         questionData,
         config
       )
       console.log('Create response:', response.data)
     }
-    
+
     await loadQuestions()
     closeModal()
   } catch (error) {

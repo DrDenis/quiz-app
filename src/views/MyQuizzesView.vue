@@ -1,57 +1,126 @@
 <template>
-  <div class="min-h-screen py-8">
-    <div class="max-w-7xl mx-auto px-4">
-      <div class="flex justify-between items-center mb-8">
-        <h1 class="text-2xl font-bold text-gray-900">
-          Quizurile Mele
-        </h1>
-        <button
-          @click="openNewQuizModal"
-          class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-        >
+  <div class="min-h-screen bg-gray-50/50 dark:bg-dark-bg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Stats Overview -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm p-6 border border-gray-100 dark:border-dark-border">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Quizuri</h3>
+            <span class="p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
+              <svg class="w-5 h-5 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </span>
+          </div>
+          <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ sortedQuizzes.length }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            {{ publishedQuizzes.length }} publicate
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm p-6 border border-gray-100 dark:border-dark-border">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Completări</h3>
+            <span class="p-2 bg-green-50 dark:bg-green-900/50 rounded-lg">
+              <svg class="w-5 h-5 text-green-500 dark:text-green-400" fill="none" stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ totalCompletions }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">în total</p>
+        </div>
+
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm p-6 border border-gray-100 dark:border-dark-border">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Întrebări</h3>
+            <span class="p-2 bg-purple-50 dark:bg-purple-900/50 rounded-lg">
+              <svg class="w-5 h-5 text-purple-500 dark:text-purple-400" fill="none" stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ totalQuestions }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">în toate quizurile</p>
+        </div>
+      </div>
+
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Quizurile Mele</h1>
+        <button @click="createNewQuiz"
+          class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-all flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
           Quiz Nou
         </button>
       </div>
 
-      <!-- Lista de quizuri -->
+      <!-- Quiz List -->
       <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div 
-          v-for="quiz in quizzes" 
-          :key="quiz._id"
-          class="bg-white shadow rounded-lg overflow-hidden"
-        >
+        <div v-for="quiz in sortedQuizzes" :key="quiz._id"
+          class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-dark-border hover:shadow-md transition-all duration-200">
           <div class="p-6">
             <div class="flex justify-between items-start mb-4">
-              <h2 class="text-lg font-medium text-gray-900">{{ quiz.title }}</h2>
-              <span 
-                :class="quiz.isPublished ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'"
-                class="px-2 py-1 text-xs rounded-full"
-              >
+              <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ quiz.title }}</h2>
+              <span
+                :class="quiz.isPublished ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'"
+                class="px-2 py-1 text-xs rounded-full">
                 {{ quiz.isPublished ? 'Publicat' : 'Ciornă' }}
               </span>
             </div>
-            
-            <p class="text-gray-600 text-sm mb-4">{{ quiz.description }}</p>
-            
-            <div class="text-sm text-gray-500 mb-4">
-              <p>Întrebări: {{ quiz.questions.length }}</p>
-              <p>Creat: {{ new Date(quiz.createdAt).toLocaleDateString() }}</p>
+
+            <p class="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2 text-left">{{ quiz.description }}</p>
+
+            <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-6">
+              <div class="flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907" />
+                </svg>
+                {{ quiz.questions.length }} întrebări
+              </div>
+              <div class="flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {{ quiz.completions || 0 }} completări
+              </div>
+              <div class="flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {{ formatDate(quiz.createdAt) }}
+              </div>
             </div>
 
             <div class="flex justify-between items-center">
-              <button
-                @click="editQuiz(quiz)"
-                class="text-flat-blue hover:text-blue-800"
-              >
-                Editează
-              </button>
-              
-              <button 
-                v-if="quiz.isPublished"
-                @click="copyQuizUrl(quiz._id)"
-                class="text-primary hover:text-primary/80"
-              >
-                Copiază Link
+              <div class="flex gap-2">
+                <router-link :to="`/quiz/${quiz._id}/edit`"
+                  class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium text-sm">
+                  Editează
+                </router-link>
+                <button @click="confirmDelete(quiz)"
+                  class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium text-sm">
+                  Șterge
+                </button>
+              </div>
+
+              <button v-if="quiz.isPublished" @click="copyQuizUrl(quiz._id)"
+                class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
               </button>
             </div>
           </div>
@@ -59,51 +128,38 @@
       </div>
     </div>
 
-    <!-- Modal pentru quiz nou -->
-    <BaseModal v-if="showNewQuizModal" @close="closeNewQuizModal">
+    <!-- Create Quiz Modal -->
+    <BaseModal v-if="showCreateModal" @close="closeCreateModal">
       <template #header>
-        <h3 class="text-lg font-medium">
-          Quiz Nou
-        </h3>
+        <h3 class="text-lg font-medium dark:text-gray-100">Quiz Nou</h3>
       </template>
 
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Titlu
           </label>
-          <input 
-            v-model="newQuiz.title"
-            type="text"
-            class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-          />
+          <input v-model="newQuiz.title" type="text"
+            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-dark-card dark:text-gray-100 shadow-sm focus:border-primary focus:ring-primary" />
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Descriere
           </label>
-          <textarea 
-            v-model="newQuiz.description"
-            rows="3"
-            class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-          ></textarea>
+          <textarea v-model="newQuiz.description" rows="3"
+            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-dark-card dark:text-gray-100 shadow-sm focus:border-primary focus:ring-primary"></textarea>
         </div>
       </div>
 
       <template #footer>
         <div class="flex justify-end space-x-3">
-          <button 
-            @click="closeNewQuizModal"
-            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-          >
+          <button @click="closeCreateModal"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
             Anulează
           </button>
-          <button 
-            @click="createQuiz"
-            class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
-            :disabled="!newQuiz.title"
-          >
+          <button @click="submitNewQuiz" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+            :disabled="!newQuiz.title">
             Creează
           </button>
         </div>
@@ -113,23 +169,44 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
-import { useRouter, useRoute  } from 'vue-router'
-import axios from 'axios'
+import { useRouter } from 'vue-router'
 import BaseModal from '@/components/BaseModal.vue'
+import axios from 'axios'
 
-const API_URL = 'http://localhost:3000/api'
-const { getAccessTokenSilently } = useAuth0()
+const API_URL = 'http://localhost:8080/api'
 const router = useRouter()
-const route = useRoute();
+const { getAccessTokenSilently } = useAuth0()
 
 const quizzes = ref([])
-const showNewQuizModal = ref(false)
+const showCreateModal = ref(false)
 const newQuiz = ref({
   title: '',
   description: ''
 })
+
+// Sortăm quizurile - publicate primele
+const sortedQuizzes = computed(() => {
+  return [...quizzes.value].sort((a, b) => {
+    if (a.isPublished === b.isPublished) {
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    }
+    return b.isPublished - a.isPublished;
+  });
+});
+
+const publishedQuizzes = computed(() =>
+  quizzes.value.filter(q => q.isPublished)
+)
+
+const totalQuestions = computed(() =>
+  quizzes.value.reduce((sum, quiz) => sum + quiz.questions.length, 0)
+)
+
+const totalCompletions = computed(() =>
+  quizzes.value.reduce((sum, quiz) => sum + (quiz.completions || 0), 0)
+)
 
 const loadQuizzes = async () => {
   try {
@@ -145,19 +222,19 @@ const loadQuizzes = async () => {
   }
 }
 
-const openNewQuizModal = () => {
-  showNewQuizModal.value = true
+const createNewQuiz = () => {
+  showCreateModal.value = true
 }
 
-const closeNewQuizModal = () => {
-  showNewQuizModal.value = false
+const closeCreateModal = () => {
+  showCreateModal.value = false
   newQuiz.value = {
     title: '',
     description: ''
   }
 }
 
-const createQuiz = async () => {
+const submitNewQuiz = async () => {
   try {
     const token = await getAccessTokenSilently()
     const response = await axios.post(
@@ -169,18 +246,41 @@ const createQuiz = async () => {
         }
       }
     )
-    
-    await loadQuizzes()
-    closeNewQuizModal()
+    closeCreateModal()
     router.push(`/quiz/${response.data._id}/edit`)
   } catch (error) {
     console.error('Error creating quiz:', error)
-    alert('Eroare la crearea quizului')
+    alert('Eroare la crearea quiz-ului')
   }
 }
 
-const editQuiz = (quiz) => {
-  router.push(`/quiz/${quiz._id}/edit`)
+const confirmDelete = async (quiz) => {
+  if (!confirm(`Ești sigur că vrei să ștergi quiz-ul "${quiz.title}"? Această acțiune nu poate fi anulată.`)) {
+    return;
+  }
+
+  try {
+    const token = await getAccessTokenSilently();
+    const response = await axios.delete(`${API_URL}/quizzes/${quiz._id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (response.data.success) {
+      // Eliminăm quiz-ul din lista locală
+      quizzes.value = quizzes.value.filter(q => q._id !== quiz._id);
+    } else {
+      throw new Error('Failed to delete quiz');
+    }
+  } catch (error) {
+    console.error('Error deleting quiz:', error);
+    if (error.response?.status === 404) {
+      alert('Quiz-ul nu a fost găsit.');
+    } else {
+      alert('A apărut o eroare la ștergerea quiz-ului.');
+    }
+  }
 }
 
 const copyQuizUrl = (quizId) => {
@@ -190,20 +290,25 @@ const copyQuizUrl = (quizId) => {
     .catch(err => console.error('Error copying to clipboard:', err))
 }
 
-onMounted(async () => {
-  await loadQuizzes(); // Load quizzes first
-  if (route.query.openModal === 'true') {
-    openNewQuizModal();
-  }
-});
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('ro-RO', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+}
 
-// Watch for changes in route query parameters (if the user navigates with different parameters)
-watch(
-  () => route.query.openModal,
-  (newVal) => {
-    if (newVal === 'true') {
-      openNewQuizModal();
-    }
-  }
-);
+// Inițializare
+onMounted(() => {
+  loadQuizzes()
+})
 </script>
+
+<style scoped>
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+</style>

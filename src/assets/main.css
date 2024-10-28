@@ -4,6 +4,6 @@
 
 @layer components {
   .nav-link {
-    @apply py-2 text-sm  my-0  flex items-center whitespace-nowrap px-4 transition-colors;
+    @apply py-2 text-sm  my-0  flex items-center whitespace-nowrap px-4 transition-colors dark:text-white;
   }
 }

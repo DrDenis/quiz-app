@@ -38,6 +38,18 @@ const routes = [
     component: () => import("../views/MyQuizzesView.vue"),
     beforeEnter: authGuard,
   },
+  {
+    path: "/questions/bank",
+    name: "QuestionBank",
+    component: () => import("../views/QuestionBankView.vue"),
+    beforeEnter: authGuard,
+  },
+  {
+    path: "/profile",
+    name: "Profile",
+    component: () => import("../views/ProfileView.vue"),
+    beforeEnter: authGuard,
+  },
 ];
 
 const router = createRouter({

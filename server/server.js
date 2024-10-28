@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 
 app.use(
   cors({
-    origin: true,
+    origin: ["http://localhost:8080", "http://localhost:3000"],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -205,6 +205,43 @@ const quizViewSchema = new mongoose.Schema({
 
 const QuizView = mongoose.model("QuizView", quizViewSchema);
 
+const profileSchema = new mongoose.Schema({
+  auth0Id: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  name: {
+    type: String,
+    required: true,
+  },
+  emailPreferences: {
+    quizCompleted: {
+      type: Boolean,
+      default: true,
+    },
+    weeklyStats: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  theme: {
+    type: String,
+    enum: ["light", "dark", "system"],
+    default: "system",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const Profile = mongoose.model("Profile", profileSchema);
+
 // Middleware pentru a obține/crea user-ul din MongoDB bazat pe Auth0 ID
 const getUserMiddleware = async (req, res, next) => {
   try {
@@ -255,6 +292,70 @@ const getUserMiddleware = async (req, res, next) => {
     });
   }
 };
+
+app.get("/api/profile", checkJwt, getUserMiddleware, async (req, res) => {
+  try {
+    let profile = await Profile.findOne({ auth0Id: req.user.auth0Id });
+
+    if (!profile) {
+      profile = await Profile.create({
+        auth0Id: req.user.auth0Id,
+        name: req.user.name || "User",
+      });
+    }
+
+    // Calculează statisticile
+    const stats = {
+      totalQuizzes: await Quiz.countDocuments({ createdBy: req.user.auth0Id }),
+      totalQuestions: await Question.countDocuments({
+        createdBy: req.user.auth0Id,
+      }),
+      totalCompletions: await QuizCompletion.countDocuments({
+        quiz: {
+          $in: await Quiz.find({ createdBy: req.user.auth0Id }).distinct("_id"),
+        },
+      }),
+    };
+
+    res.json({
+      ...profile.toObject(),
+      stats,
+    });
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    res.status(500).json({ error: "Error fetching profile" });
+  }
+});
+
+app.put("/api/profile", checkJwt, getUserMiddleware, async (req, res) => {
+  try {
+    const allowedUpdates = ["name", "emailPreferences", "theme"];
+    const updates = {};
+
+    allowedUpdates.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    updates.updatedAt = new Date();
+
+    const profile = await Profile.findOneAndUpdate(
+      { auth0Id: req.user.auth0Id },
+      updates,
+      { new: true, runValidators: true }
+    );
+
+    if (!profile) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).json({ error: "Error updating profile" });
+  }
+});
 
 app.get("/api/dashboard", checkJwt, getUserMiddleware, async (req, res) => {
   try {
@@ -335,47 +436,90 @@ app.get("/api/quiz/:id", async (req, res) => {
     const quiz = await Quiz.findOne({
       _id: req.params.id,
       isPublished: true,
-    });
+    }).populate("questions.question");
 
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found or not published" });
     }
 
-    // Înregistrăm vizualizarea
-    console.log("Recording view for quiz:", quiz._id);
-    await new QuizView({
-      quizId: quiz._id,
-    }).save();
+    // Transformăm datele pentru interfața publică
+    const publicQuiz = {
+      _id: quiz._id,
+      title: quiz.title,
+      description: quiz.description,
+      questions: quiz.questions.map((q) => ({
+        _id: q.question._id,
+        text: q.question.text,
+        feedbackYes: q.question.feedbackYes,
+        feedbackNo: q.question.feedbackNo,
+      })),
+    };
 
-    res.json(quiz);
+    res.json(publicQuiz);
   } catch (error) {
     console.error("Error fetching quiz:", error);
     res.status(500).json({ error: "Error fetching quiz" });
   }
 });
 
+app.patch(
+  "/api/quizzes/:id/assign-questions",
+  checkJwt,
+  getUserMiddleware,
+  async (req, res) => {
+    try {
+      const quiz = await Quiz.findOne({
+        _id: req.params.id,
+        createdBy: req.user.auth0Id,
+      });
+
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+
+      const { questionIds } = req.body;
+      const questions = await Question.find({ _id: { $in: questionIds } });
+
+      // Adăugăm întrebările la quiz
+      const newQuestions = questions.map((q, index) => ({
+        question: q._id,
+        order: quiz.questions.length + index,
+      }));
+
+      quiz.questions.push(...newQuestions);
+      await quiz.save();
+
+      // Populăm întrebările pentru răspuns
+      await quiz.populate("questions.question");
+
+      res.json(quiz);
+    } catch (error) {
+      console.error("Error assigning questions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 app.post("/api/quiz/submit", async (req, res) => {
   try {
     const { quizId, answers, email } = req.body;
-    const quiz = await Quiz.findById(quizId);
 
+    // Găsim quiz-ul
+    const quiz = await Quiz.findById(quizId);
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found" });
     }
 
-    console.log("Recording quiz completion:", { quizId, email });
-
     // Salvăm completarea
-    const completion = await new QuizCompletion({
+    const completion = new QuizCompletion({
       quizId,
       email,
       answers,
-    }).save();
-
-    console.log("Completion saved:", completion);
+    });
+    await completion.save();
 
     // Înregistrăm activitatea
-    await new Activity({
+    const activity = new Activity({
       type: "quiz-completed",
       userId: quiz.createdBy,
       title: `Quiz completat: ${quiz.title}`,
@@ -384,52 +528,49 @@ app.post("/api/quiz/submit", async (req, res) => {
         quizTitle: quiz.title,
         completedBy: email,
       },
-    }).save();
+    });
+    await activity.save();
 
-    // Generate PDF
+    // Generăm PDF-ul și trimitem email-ul
     const doc = new jsPDF();
     let yPos = 20;
 
     // Header
     doc.setFontSize(20);
     doc.text("Rezultate Quiz", 105, yPos, { align: "center" });
-    yPos += 10;
+    yPos += 20;
 
-    // Quiz Title
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.text(quiz.title, 105, yPos, { align: "center" });
     yPos += 20;
 
-    // Date
+    // Data
     doc.setFontSize(12);
     doc.text(`Data: ${new Date().toLocaleDateString("ro-RO")}`, 20, yPos);
-    yPos += 15;
+    yPos += 10;
 
-    // Questions and Answers
-    doc.setFontSize(12);
+    // Questions and answers
     quiz.questions.forEach((question, index) => {
-      // Check if we need a new page
+      const answer = answers[question._id];
+
+      // Verifică spațiul disponibil pe pagină
       if (yPos > 250) {
         doc.addPage();
         yPos = 20;
       }
 
-      const answer = answers[question._id];
-
-      // Question
+      doc.setFontSize(12);
       doc.setFont(undefined, "bold");
       doc.text(`${index + 1}. ${question.text}`, 20, yPos);
       yPos += 10;
 
-      // Answer
       doc.setFont(undefined, "normal");
       doc.text(`Răspuns: ${answer ? "Da" : "Nu"}`, 20, yPos);
       yPos += 10;
 
-      // Feedback
       const feedback = answer ? question.feedbackYes : question.feedbackNo;
-      const splitFeedback = doc.splitTextToSize(feedback, 170);
-      splitFeedback.forEach((line) => {
+      const lines = doc.splitTextToSize(feedback, 170);
+      lines.forEach((line) => {
         if (yPos > 280) {
           doc.addPage();
           yPos = 20;
@@ -441,15 +582,14 @@ app.post("/api/quiz/submit", async (req, res) => {
       yPos += 10;
     });
 
-    // Convert PDF to buffer
+    // Trimite email cu PDF
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
 
-    // Send email with SendGrid
     const msg = {
       to: email,
-      from: process.env.SENDGRID_VERIFIED_SENDER, // trebuie să fie un sender verificat în SendGrid
+      from: process.env.SENDGRID_VERIFIED_SENDER,
       subject: `Rezultate Quiz: ${quiz.title}`,
-      text: `Mulțumim pentru completarea quizului "${quiz.title}". Găsești atașat rezultatele tale.`,
+      text: "Găsești atașat rezultatele tale pentru quiz-ul completat.",
       attachments: [
         {
           content: pdfBuffer.toString("base64"),
@@ -462,7 +602,7 @@ app.post("/api/quiz/submit", async (req, res) => {
 
     await sgMail.send(msg);
 
-    res.json({ success: true, message: "Results sent successfully" });
+    res.json({ success: true });
   } catch (error) {
     console.error("Error submitting quiz:", error);
     res.status(500).json({ error: "Error submitting quiz results" });
@@ -500,27 +640,84 @@ app.post("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
 // Obține toate quizurile unui user
 app.get("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
   try {
-    const quizzes = await Quiz.find({ createdBy: req.user.auth0Id }).sort(
-      "-createdAt"
+    // Obținem toate quizurile userului
+    const quizzes = await Quiz.find({ createdBy: req.user.auth0Id });
+
+    // Obținem completările pentru fiecare quiz
+    const quizzesWithStats = await Promise.all(
+      quizzes.map(async (quiz) => {
+        const completions = await QuizCompletion.countDocuments({
+          quizId: quiz._id,
+        });
+        return {
+          ...quiz.toObject(),
+          completions,
+        };
+      })
     );
-    res.json(quizzes);
+
+    // Sortăm quizurile - publicate primele, apoi după dată
+    const sortedQuizzes = quizzesWithStats.sort((a, b) => {
+      if (a.isPublished === b.isPublished) {
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      }
+      return b.isPublished - a.isPublished;
+    });
+
+    res.json(sortedQuizzes);
   } catch (error) {
+    console.error("Error fetching quizzes:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Obține un quiz specific
-app.get("/api/quizzes/:id", async (req, res) => {
+app.get("/api/quizzes/:id", checkJwt, getUserMiddleware, async (req, res) => {
   try {
-    const quiz = await Quiz.findById(req.params.id);
+    const quiz = await Quiz.findOne({
+      _id: req.params.id,
+      createdBy: req.user.auth0Id,
+    }).populate("questions.question"); // Populate detaliile întrebărilor
+
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found" });
     }
+
     res.json(quiz);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.delete(
+  "/api/quizzes/:id",
+  checkJwt,
+  getUserMiddleware,
+  async (req, res) => {
+    try {
+      // Găsim quiz-ul și verificăm dacă aparține userului curent
+      const quiz = await Quiz.findOne({
+        _id: req.params.id,
+        createdBy: req.user.auth0Id,
+      });
+
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+
+      // Ștergem completările asociate
+      await QuizCompletion.deleteMany({ quizId: quiz._id });
+
+      // Ștergem quiz-ul
+      await Quiz.deleteOne({ _id: quiz._id });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting quiz:", error);
+      res.status(500).json({ error: "Error deleting quiz" });
+    }
+  }
+);
 
 // Rută publică pentru vizualizarea unui quiz
 app.get("/api/public/quizzes/:id", async (req, res) => {
@@ -888,6 +1085,35 @@ app.delete(
       await question.delete();
       res.json({ success: true });
     } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.put(
+  "/api/quizzes/:quizId",
+  checkJwt,
+  getUserMiddleware,
+  async (req, res) => {
+    try {
+      const quiz = await Quiz.findOne({
+        _id: req.params.quizId,
+        createdBy: req.user.auth0Id,
+      });
+
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+
+      // Actualizăm lista de întrebări
+      quiz.questions = req.body.questions;
+
+      await quiz.save();
+      await quiz.populate("questions.question");
+
+      res.json(quiz);
+    } catch (error) {
+      console.error("Error updating quiz:", error);
       res.status(500).json({ error: error.message });
     }
   }
