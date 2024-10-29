@@ -144,6 +144,8 @@ const quizSchema = new mongoose.Schema({
   },
 });
 
+quizSchema.index({ "questions.question": 1 });
+
 const Quiz = mongoose.model("Quiz", quizSchema);
 
 const activitySchema = new mongoose.Schema({
@@ -987,10 +989,62 @@ app.get(
     try {
       const questions = await Question.find({ createdBy: req.user.auth0Id })
         .sort("-createdAt")
-        .populate("usedInQuizzes", "title"); // Populăm informații despre quizurile în care e folosită
+        .lean();
 
-      res.json(questions);
+      // Pentru fiecare întrebare, găsim quizurile în care e folosită
+      const questionsWithUsage = await Promise.all(
+        questions.map(async (question) => {
+          const quizzes = await Quiz.find(
+            { "questions.question": question._id },
+            "title"
+          ).lean();
+
+          return {
+            ...question,
+            usedInQuizzes: quizzes,
+          };
+        })
+      );
+
+      res.json(questionsWithUsage);
     } catch (error) {
+      console.error("Error fetching questions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.post(
+  "/api/questions/bank/:id/detach",
+  checkJwt,
+  getUserMiddleware,
+  async (req, res) => {
+    try {
+      const question = await Question.findOne({
+        _id: req.params.id,
+        createdBy: req.user.auth0Id,
+      });
+
+      if (!question) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+
+      // Găsește toate quizurile care folosesc această întrebare
+      const quizzes = await Quiz.find({ "questions.question": question._id });
+
+      // Elimină întrebarea din fiecare quiz
+      await Promise.all(
+        quizzes.map((quiz) => {
+          quiz.questions = quiz.questions.filter(
+            (q) => q.question.toString() !== question._id.toString()
+          );
+          return quiz.save();
+        })
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error detaching question:", error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -1065,26 +1119,39 @@ app.delete(
   getUserMiddleware,
   async (req, res) => {
     try {
+      console.log("Attempting to delete question:", req.params.id);
+
       const question = await Question.findOne({
         _id: req.params.id,
         createdBy: req.user.auth0Id,
       });
 
       if (!question) {
+        console.log("Question not found");
         return res.status(404).json({ error: "Question not found" });
       }
 
-      // Verificăm dacă întrebarea e folosită în vreun quiz
-      if (question.usedInQuizzes?.length > 0) {
+      // Verificăm dacă întrebarea e folosită în quizuri
+      const quizzesUsingQuestion = await Quiz.find({
+        "questions.question": question._id,
+      });
+
+      console.log("Quizzes using question:", quizzesUsingQuestion.length);
+
+      if (quizzesUsingQuestion.length > 0) {
+        const quizTitles = quizzesUsingQuestion.map((q) => q.title).join(", ");
         return res.status(400).json({
           error: "Cannot delete question that is used in quizzes",
-          quizzes: question.usedInQuizzes,
+          details: `Question is used in: ${quizTitles}`,
         });
       }
 
-      await question.delete();
+      await question.deleteOne();
+      console.log("Question deleted successfully");
+
       res.json({ success: true });
     } catch (error) {
+      console.error("Error deleting question:", error);
       res.status(500).json({ error: error.message });
     }
   }
