@@ -9,6 +9,7 @@ const mongoose = require("mongoose");
 const { auth } = require("express-oauth2-jwt-bearer");
 const sgMail = require("@sendgrid/mail");
 const { jsPDF } = require("jspdf");
+require("jspdf-autotable");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const app = express();
@@ -518,107 +519,165 @@ app.patch(
   }
 );
 
+const generateStyledPDF = (quiz, answers) => {
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+    putOnlyUsedFonts: true,
+    floatPrecision: 16,
+    compress: true,
+  });
+
+  // Definim culorile
+  const colors = {
+    primary: [60, 115, 168], // albastru
+    success: [74, 222, 128], // verde
+    error: [239, 68, 68], // roșu
+    text: [31, 41, 55], // text normal
+    textSecondary: [107, 114, 128], // text secundar
+  };
+
+  let yPos = 25;
+
+  // Header
+  doc.setTextColor(...colors.primary);
+  doc.setFontSize(24);
+  doc.text("Rezultate Quiz", doc.internal.pageSize.getWidth() / 2, yPos, {
+    align: "center",
+  });
+  yPos += 15;
+
+  // Titlu Quiz
+  doc.setTextColor(...colors.text);
+  doc.setFontSize(18);
+  doc.text(quiz.title, doc.internal.pageSize.getWidth() / 2, yPos, {
+    align: "center",
+  });
+  yPos += 20;
+
+  // Data
+  doc.setTextColor(...colors.textSecondary);
+  doc.setFontSize(12);
+  const currentDate = new Date().toLocaleDateString("ro-RO", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  doc.text(`Data: ${currentDate}`, 20, yPos);
+  yPos += 20;
+
+  // Întrebări și răspunsuri
+  quiz.questions.forEach((questionItem, index) => {
+    const question = questionItem.question;
+    if (!question) return;
+
+    if (yPos > 250) {
+      doc.addPage();
+      yPos = 25;
+    }
+
+    // Întrebarea
+    doc.setTextColor(...colors.text);
+    doc.setFontSize(14);
+    doc.text(`${index + 1}. ${question.text}`, 20, yPos);
+    yPos += 12;
+
+    // Background pentru răspuns
+    const answer = answers[question._id];
+    const responseColor = answer ? colors.success : colors.error;
+
+    // Desenăm background-ul pentru răspuns
+    doc.setFillColor(...responseColor);
+    doc.roundedRect(20, yPos - 6, 170, 8, 1, 1, "F");
+
+    // Textul răspunsului cu corectare pentru diacritice
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    const responseText = answer ? "Răspuns: Da" : "Răspuns: Nu";
+    doc.text(
+      responseText
+        .replace(/ă/g, "a")
+        .replace(/â/g, "a")
+        .replace(/î/g, "i")
+        .replace(/ș/g, "s")
+        .replace(/ț/g, "t"),
+      25,
+      yPos
+    );
+    yPos += 15;
+
+    // Secțiunea de feedback
+    doc.setTextColor(...colors.textSecondary);
+    doc.setFontSize(12);
+    doc.text("Feedback:", 20, yPos);
+    yPos += 7;
+
+    // Conținutul feedback-ului
+    doc.setTextColor(...colors.text);
+    const feedback = answer ? question.feedbackYes : question.feedbackNo;
+    const lines = doc.splitTextToSize(feedback, 170);
+
+    lines.forEach((line) => {
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 25;
+      }
+      doc.text(line, 20, yPos);
+      yPos += 7;
+    });
+
+    yPos += 15;
+  });
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setTextColor(...colors.textSecondary);
+    doc.setFontSize(10);
+    doc.text(
+      `Pagina ${i} din ${pageCount}`,
+      doc.internal.pageSize.getWidth() / 2,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: "center" }
+    );
+  }
+
+  return doc;
+};
+
+// În ruta /api/quiz/submit
 app.post("/api/quiz/submit", async (req, res) => {
   try {
     const { quizId, answers, email } = req.body;
 
-    console.log("Quiz submission:", {
-      quizId,
-      email,
-      answersCount: Object.keys(answers).length,
-    });
-
-    // Găsim quiz-ul
     const quiz = await Quiz.findById(quizId).populate("questions.question");
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found" });
     }
 
     // Salvăm completarea
-    const completion = await QuizCompletion.create({
+    const savedCompletion = await QuizCompletion.create({
       quizId,
       email,
       answers,
     });
 
-    console.log("Quiz completion saved:", completion._id);
-
-    // Înregistrăm activitatea
-    const activity = new Activity({
-      type: "quiz-completed",
-      userId: quiz.createdBy,
-      title: `Quiz completat: ${quiz.title}`,
-      details: {
-        quizId: quiz._id,
-        quizTitle: quiz.title,
-        completedBy: email,
-      },
-    });
-    await activity.save();
-
-    // Generăm PDF-ul și trimitem email-ul
-    const doc = new jsPDF();
-    let yPos = 20;
-
-    // Header
-    doc.setFontSize(20);
-    doc.text("Rezultate Quiz", 105, yPos, { align: "center" });
-    yPos += 20;
-
-    doc.setFontSize(14);
-    doc.text(quiz.title, 105, yPos, { align: "center" });
-    yPos += 20;
-
-    // Data
-    doc.setFontSize(12);
-    doc.text(`Data: ${new Date().toLocaleDateString("ro-RO")}`, 20, yPos);
-    yPos += 10;
-
-    // Questions and answers
-    quiz.questions.forEach((question, index) => {
-      const answer = answers[question._id];
-
-      // Verifică spațiul disponibil pe pagină
-      if (yPos > 250) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      doc.setFontSize(12);
-      doc.setFont(undefined, "bold");
-      doc.text(`${index + 1}. ${question.text}`, 20, yPos);
-      yPos += 10;
-
-      doc.setFont(undefined, "normal");
-      doc.text(`Răspuns: ${answer ? "Da" : "Nu"}`, 20, yPos);
-      yPos += 10;
-
-      const feedback = answer ? question.feedbackYes : question.feedbackNo;
-      const lines = doc.splitTextToSize(feedback, 170);
-      lines.forEach((line) => {
-        if (yPos > 280) {
-          doc.addPage();
-          yPos = 20;
-        }
-        doc.text(line, 20, yPos);
-        yPos += 7;
-      });
-
-      yPos += 10;
-    });
-
-    // Trimite email cu PDF
+    // Generăm PDF-ul
+    const doc = generateStyledPDF(quiz, answers);
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
 
+    // Trimitem email-ul
     const msg = {
       to: email,
       from: process.env.SENDGRID_VERIFIED_SENDER,
       subject: `Rezultate Quiz: ${quiz.title}`,
-      text: "Găsești atașat rezultatele tale pentru quiz-ul completat.",
+      text: "Găsiți atașat rezultatele pentru quiz-ul completat.",
       attachments: [
         {
           content: pdfBuffer.toString("base64"),
-          filename: "rezultate.pdf",
+          filename: `Rezultate - ${quiz.title}.pdf`,
           type: "application/pdf",
           disposition: "attachment",
         },
@@ -627,10 +686,16 @@ app.post("/api/quiz/submit", async (req, res) => {
 
     await sgMail.send(msg);
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      completionId: savedCompletion._id,
+    });
   } catch (error) {
     console.error("Error submitting quiz:", error);
-    res.status(500).json({ error: "Error submitting quiz results" });
+    res.status(500).json({
+      error: "Error submitting quiz results",
+      details: error.message,
+    });
   }
 });
 

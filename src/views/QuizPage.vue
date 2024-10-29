@@ -58,27 +58,29 @@ const submitResults = async () => {
   }
 
   try {
-    // Trimitem datele ca JSON, nu ca FormData
     const response = await axios.post(`${API_URL}/quiz/submit`, {
       quizId: quiz.value._id,
       email: email.value,
       answers: answers.value
-    }, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
     });
 
     if (response.data.success) {
       alert('Rezultatele au fost trimise pe email!');
-    } else {
-      throw new Error('Eroare la trimiterea rezultatelor');
     }
   } catch (error) {
     console.error('Error submitting results:', error);
-    alert('A apărut o eroare la trimiterea rezultatelor');
+    console.error('Server response:', error.response?.data);
+
+    let errorMessage = 'A apărut o eroare la trimiterea rezultatelor. ';
+    if (error.response?.data?.details) {
+      errorMessage += error.response.data.details;
+    }
+
+    alert(errorMessage);
   }
-}
+};
+
+
 
 // Load quiz when component is mounted
 loadQuiz()
