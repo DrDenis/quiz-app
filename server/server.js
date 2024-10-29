@@ -1,4 +1,8 @@
 require("dotenv").config();
+
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, ".env") });
+
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
@@ -25,9 +29,18 @@ app.use((req, res, next) => {
   next();
 });
 
+const allowedOrigins = ["http://localhost:8080", "https://quiz-app.online"];
+
 app.use(
   cors({
-    origin: ["http://localhost:8080", "http://localhost:3000"],
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
