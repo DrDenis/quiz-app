@@ -6,7 +6,7 @@
       <div class="absolute bottom-0 left-0 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl"></div>
     </div>
 
-    <div class="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12  relative z-10">
       <!-- Profile Header -->
       <div
         class="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-8">

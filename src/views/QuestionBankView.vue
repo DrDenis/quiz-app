@@ -4,7 +4,7 @@
       <div class="absolute top-0 right-0 w-96 h-96 rounded-full bg-primary/10 blur-3xl"></div>
       <div class="absolute bottom-0 left-0 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl"></div>
     </div>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Total Questions -->
@@ -100,15 +100,15 @@
                 <!-- Întrebare și Feedback -->
                 <h3 class="font-medium text-gray-900 dark:text-white">{{ question.text }}</h3>
                 <div class="mt-2 space-y-2">
-                  <p class="text-sm">
+                  <p class="text-sm ">
                     <span
-                      class="px-2 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-md">
+                      class="px-2 my-3 mr-3 inline-block py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-md">
                       Feedback Da
                     </span>
                     {{ question.feedbackYes }}
                   </p>
                   <p class="text-sm">
-                    <span class="px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md">
+                    <span class="px-2 mr-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md">
                       Feedback Nu
                     </span>
                     {{ question.feedbackNo }}

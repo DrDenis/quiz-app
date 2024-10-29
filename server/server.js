@@ -98,6 +98,7 @@ const questionSchema = new mongoose.Schema({
   createdBy: {
     type: String,
     required: true,
+    index: true,
   },
   // Noi câmpuri
   usedInQuizzes: [
@@ -135,8 +136,9 @@ const quizSchema = new mongoose.Schema({
     trim: true,
   },
   createdBy: {
-    type: String, // auth0Id
+    type: String,
     required: true,
+    index: true, // Adăugăm index
   },
   isPublished: {
     type: Boolean,
@@ -261,45 +263,47 @@ const Profile = mongoose.model("Profile", profileSchema);
 const getUserMiddleware = async (req, res, next) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
+    console.log("Auth0 payload:", req.auth?.payload);
+
     if (!auth0Id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Debug logging
-    console.log("Full Auth0 Payload:", req.auth.payload);
-
-    // Pentru Google OAuth, email-ul poate fi în alt loc
-    const email =
-      req.auth.payload.email ||
-      req.auth.payload["https://example.com/email"] ||
-      `${auth0Id}@placeholder.com`; // fallback
-
-    const name =
-      req.auth.payload.name ||
-      req.auth.payload.nickname ||
-      req.auth.payload["https://example.com/name"] ||
-      email.split("@")[0]; // folosim partea din email ca nume dacă nu avem altceva
-
-    console.log("Extracted user info:", { auth0Id, email, name });
-
     let user = await User.findOne({ auth0Id });
 
     if (!user) {
+      // Extragem email-ul din payload-ul Auth0
+      const email =
+        req.auth.payload.email ||
+        req.auth.payload["https://example.com/email"] ||
+        `${auth0Id.split("|")[1]}@placeholder.com`;
+
+      const name =
+        req.auth.payload.name ||
+        req.auth.payload.nickname ||
+        email.split("@")[0];
+
       console.log("Creating new user with:", { auth0Id, email, name });
+
       user = await User.create({
         auth0Id,
         email,
         name,
       });
-      console.log("New user created:", user);
-    } else {
-      console.log("Found existing user:", user);
     }
+
+    console.log("User:", {
+      id: user._id,
+      auth0Id: user.auth0Id,
+      email: user.email,
+      name: user.name,
+    });
 
     req.user = user;
     next();
   } catch (error) {
     console.error("User middleware error:", error);
+    console.error("Auth payload:", req.auth?.payload);
     res.status(500).json({
       error: "Internal server error",
       details: error.message,
@@ -519,19 +523,26 @@ app.post("/api/quiz/submit", async (req, res) => {
   try {
     const { quizId, answers, email } = req.body;
 
+    console.log("Quiz submission:", {
+      quizId,
+      email,
+      answersCount: Object.keys(answers).length,
+    });
+
     // Găsim quiz-ul
-    const quiz = await Quiz.findById(quizId);
+    const quiz = await Quiz.findById(quizId).populate("questions.question");
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found" });
     }
 
     // Salvăm completarea
-    const completion = new QuizCompletion({
+    const completion = await QuizCompletion.create({
       quizId,
       email,
       answers,
     });
-    await completion.save();
+
+    console.log("Quiz completion saved:", completion._id);
 
     // Înregistrăm activitatea
     const activity = new Activity({
@@ -627,27 +638,21 @@ app.post("/api/quiz/submit", async (req, res) => {
 // Creare quiz nou
 app.post("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
   try {
+    console.log("Creating quiz for user:", req.user.auth0Id);
+    console.log("Quiz data:", req.body);
+
     const quiz = new Quiz({
-      title: req.body.title,
-      description: req.body.description,
+      ...req.body,
       createdBy: req.user.auth0Id,
       questions: [],
     });
-    await quiz.save();
 
-    // Înregistrăm activitatea
-    await new Activity({
-      type: "quiz-created",
-      userId: req.user.auth0Id,
-      title: `Quiz nou creat: ${quiz.title}`,
-      details: {
-        quizId: quiz._id,
-        quizTitle: quiz.title,
-      },
-    }).save();
+    await quiz.save();
+    console.log("Quiz created:", quiz._id);
 
     res.json(quiz);
   } catch (error) {
+    console.error("Error creating quiz:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -655,8 +660,16 @@ app.post("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
 // Obține toate quizurile unui user
 app.get("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
   try {
+    console.log("Fetching quizzes for user:", req.user.auth0Id);
+
     // Obținem toate quizurile userului
-    const quizzes = await Quiz.find({ createdBy: req.user.auth0Id });
+    const quizzes = await Quiz.find({
+      createdBy: req.user.auth0Id,
+    })
+      .sort("-createdAt")
+      .lean();
+
+    console.log("Found quizzes:", quizzes.length);
 
     // Obținem completările pentru fiecare quiz
     const quizzesWithStats = await Promise.all(
@@ -664,8 +677,11 @@ app.get("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
         const completions = await QuizCompletion.countDocuments({
           quizId: quiz._id,
         });
+
+        console.log(`Quiz ${quiz._id} has ${completions} completions`);
+
         return {
-          ...quiz.toObject(),
+          ...quiz,
           completions,
         };
       })
@@ -682,7 +698,10 @@ app.get("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
     res.json(sortedQuizzes);
   } catch (error) {
     console.error("Error fetching quizzes:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message,
+      userId: req.user.auth0Id, // Pentru debugging
+    });
   }
 });
 
@@ -691,8 +710,8 @@ app.get("/api/quizzes/:id", checkJwt, getUserMiddleware, async (req, res) => {
   try {
     const quiz = await Quiz.findOne({
       _id: req.params.id,
-      createdBy: req.user.auth0Id,
-    }).populate("questions.question"); // Populate detaliile întrebărilor
+      createdBy: req.user.auth0Id, // Verificăm că aparține userului curent
+    }).populate("questions.question");
 
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found" });
@@ -700,6 +719,7 @@ app.get("/api/quizzes/:id", checkJwt, getUserMiddleware, async (req, res) => {
 
     res.json(quiz);
   } catch (error) {
+    console.error("Error fetching quiz:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1000,17 +1020,28 @@ app.get(
   getUserMiddleware,
   async (req, res) => {
     try {
+      console.log("Fetching questions for user:", req.user.auth0Id);
+
       const questions = await Question.find({ createdBy: req.user.auth0Id })
         .sort("-createdAt")
         .lean();
+
+      console.log("Found questions:", questions.length);
 
       // Pentru fiecare întrebare, găsim quizurile în care e folosită
       const questionsWithUsage = await Promise.all(
         questions.map(async (question) => {
           const quizzes = await Quiz.find(
-            { "questions.question": question._id },
+            {
+              "questions.question": question._id,
+              createdBy: req.user.auth0Id, // Ne asigurăm că vedem doar quizurile proprii
+            },
             "title"
           ).lean();
+
+          console.log(
+            `Question ${question._id} used in ${quizzes.length} quizzes`
+          );
 
           return {
             ...question,

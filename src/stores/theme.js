@@ -2,8 +2,17 @@ import { defineStore } from "pinia";
 
 export const useThemeStore = defineStore("theme", {
   state: () => ({
-    theme: localStorage.getItem("theme") || "system",
+    theme: localStorage.getItem("theme") || "dark", // Default la dark
   }),
+
+  getters: {
+    isDark: (state) => {
+      if (state.theme === "system") {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches;
+      }
+      return state.theme === "dark";
+    },
+  },
 
   actions: {
     setTheme(newTheme) {
@@ -13,10 +22,7 @@ export const useThemeStore = defineStore("theme", {
     },
 
     applyTheme() {
-      const isDark =
-        this.theme === "dark" ||
-        (this.theme === "system" &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches);
+      const isDark = this.isDark;
 
       if (isDark) {
         document.documentElement.classList.add("dark");
@@ -26,6 +32,9 @@ export const useThemeStore = defineStore("theme", {
     },
 
     init() {
+      // Aplică tema inițială (dark by default)
+      this.applyTheme();
+
       // Ascultă pentru schimbări de system theme
       window
         .matchMedia("(prefers-color-scheme: dark)")
@@ -34,8 +43,6 @@ export const useThemeStore = defineStore("theme", {
             this.applyTheme();
           }
         });
-
-      this.applyTheme();
     },
   },
 });
