@@ -401,12 +401,12 @@ app.get("/api/dashboard", checkJwt, getUserMiddleware, async (req, res) => {
       }),
     ]);
 
-    console.log("Dashboard Stats:", {
-      quizIds,
-      completions,
-      views,
-      userQuizzes: userQuizzes.length,
-    });
+    // Calculăm rata de completare cu validare
+    let completionRate = 0;
+    if (views > 0) {
+      // Asigurăm-ne că rata nu depășește 100%
+      completionRate = Math.min(Math.round((completions / views) * 100), 100);
+    }
 
     const stats = {
       totalQuizzes: userQuizzes.length,
@@ -416,7 +416,7 @@ app.get("/api/dashboard", checkJwt, getUserMiddleware, async (req, res) => {
         0
       ),
       totalCompletions: completions,
-      completionRate: views > 0 ? Math.round((completions / views) * 100) : 0,
+      completionRate, // Rata validată
       totalViews: views,
     };
 
@@ -442,7 +442,6 @@ app.get("/api/dashboard", checkJwt, getUserMiddleware, async (req, res) => {
         }))
       );
 
-    console.log("Sending dashboard response:", { stats, recentActivity });
     res.json({ stats, recentActivity });
   } catch (error) {
     console.error("Error fetching dashboard data:", error);

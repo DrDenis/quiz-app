@@ -65,8 +65,12 @@
               </svg>
             </span>
           </div>
-          <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ stats.completionRate }}%</p>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">din total accesări</p>
+          <div>
+            <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ stats.completionRate }}%</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              {{ stats.totalViews ? `din ${stats.totalViews} accesări` : 'Nicio accesare încă' }}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -77,7 +81,7 @@
           class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-dark-border">
           <div class="p-6">
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-6">Activitate Recentă</h2>
-            <div class="max-h-[32rem] overflow-y-auto pr-2 -mr-2">
+            <div class="max-h-[32rem] overflow-y-auto custom-scrollbar">
               <div v-if="recentActivity.length === 0" class="text-center py-8">
                 <svg class="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor"
                   viewBox="0 0 24 24">
@@ -100,10 +104,32 @@
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ activity.title }}</p>
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ activity.time }}</p>
                   </div>
-                  <button v-if="activity.details.quizId" @click="$router.push(`/quiz/${activity.details.quizId}`)"
-                    class="text-primary hover:text-primary/90 text-sm font-medium">
-                    Vezi
-                  </button>
+
+                  <!-- Quiz Actions -->
+                  <div v-if="activity.details.quizId" class="ml-4">
+                    <button v-if="isQuizPublished(activity.details.quizId)"
+                      @click="$router.push(`/quiz/${activity.details.quizId}`)"
+                      class="text-primary hover:text-primary/90 text-sm font-medium">
+                      Vezi
+                    </button>
+                    <span v-else-if="isQuizExists(activity.details.quizId)"
+                      class="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1"
+                      title="Quiz-ul nu este publicat">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                      Nepublicat
+                    </span>
+                    <span v-else class="text-sm text-red-600 dark:text-red-400 flex items-center gap-1"
+                      title="Quiz-ul a fost șters">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Șters
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -154,12 +180,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
-//import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 const API_URL = 'http://localhost:8080/api'
-// Putem elimina router dacă îl folosim direct în template cu $router
-// const router = useRouter()
 const { getAccessTokenSilently } = useAuth0()
 
 const stats = ref({
@@ -172,6 +195,16 @@ const stats = ref({
 
 const recentActivity = ref([])
 const isLoading = ref(true)
+const quizzes = ref(new Map()) // Stochează toate quizurile cu starea lor
+
+const isQuizExists = (quizId) => {
+  return quizzes.value.has(quizId)
+}
+
+const isQuizPublished = (quizId) => {
+  const quiz = quizzes.value.get(quizId)
+  return quiz?.isPublished || false
+}
 
 const getActivityColor = (type) => {
   const colors = {
@@ -194,10 +227,20 @@ const getActivityIcon = (type) => {
 const loadDashboardData = async () => {
   try {
     const token = await getAccessTokenSilently()
+
+    // Load quizzes first to check which ones exist and their status
+    const quizzesResponse = await axios.get(`${API_URL}/quizzes`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+    // Store quizzes in Map for easy lookup
+    quizzes.value = new Map(
+      quizzesResponse.data.map(quiz => [quiz._id, quiz])
+    )
+
+    // Load dashboard data
     const response = await axios.get(`${API_URL}/dashboard`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: { Authorization: `Bearer ${token}` }
     })
 
     stats.value = response.data.stats
@@ -213,3 +256,40 @@ onMounted(() => {
   loadDashboardData()
 })
 </script>
+
+<style scoped>
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 20px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.7);
+}
+
+/* Dark mode scrollbar */
+:is(.dark .custom-scrollbar) {
+  scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+}
+
+:is(.dark .custom-scrollbar)::-webkit-scrollbar-thumb {
+  background-color: rgba(75, 85, 99, 0.5);
+}
+
+:is(.dark .custom-scrollbar)::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(75, 85, 99, 0.7);
+}
+</style>
