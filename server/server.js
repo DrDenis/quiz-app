@@ -12,6 +12,19 @@ const { jsPDF } = require("jspdf");
 require("jspdf-autotable");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+// Import models
+const Quiz = require("./models/Quiz");
+const QuizView = require("./models/QuizView");
+const Question = require("./models/Question");
+const QuizCompletion = require("./models/QuizCompletion");
+const StatisticalResponse = require("./models/StatisticalResponse");
+const Activity = require("./models/Activity");
+const User = require("./models/User");
+const Profile = require("./models/Profile");
+
+// Import services
+const QuizStatisticsService = require("./services/QuizStatisticsService");
+
 const app = express();
 
 // Middleware pentru parsing
@@ -29,6 +42,9 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+const statisticsRoutes = require("./routes/statisticsRoutes");
+app.use("/api/statistics", statisticsRoutes);
 
 const allowedOrigins = ["http://localhost:8080", "https://quiz-app.online"];
 
@@ -59,225 +75,24 @@ const checkJwt = auth({
   audience: process.env.AUTH0_AUDIENCE,
 });
 
-// Schema-uri
-const userSchema = new mongoose.Schema({
-  auth0Id: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  name: String,
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-const User = mongoose.model("User", userSchema);
-
-const questionSchema = new mongoose.Schema({
-  text: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  feedbackYes: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  feedbackNo: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  createdBy: {
-    type: String,
-    required: true,
-    index: true,
-  },
-  // Noi câmpuri
-  usedInQuizzes: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Quiz",
-    },
-  ],
-  category: {
-    type: String,
-    trim: true,
-  },
-  tags: [
-    {
-      type: String,
-      trim: true,
-    },
-  ],
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-const Question = mongoose.model("Question", questionSchema);
-
-const quizSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  description: {
-    type: String,
-    trim: true,
-  },
-  createdBy: {
-    type: String,
-    required: true,
-    index: true, // Adăugăm index
-  },
-  isPublished: {
-    type: Boolean,
-    default: false,
-  },
-  questions: [
-    {
-      question: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Question",
-      },
-      order: Number,
-    },
-  ],
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-quizSchema.index({ "questions.question": 1 });
-
-const Quiz = mongoose.model("Quiz", quizSchema);
-
-const activitySchema = new mongoose.Schema({
-  type: {
-    type: String,
-    enum: ["quiz-created", "quiz-completed", "question-added"],
-    required: true,
-  },
-  userId: {
-    type: String,
-    required: true,
-  },
-  title: {
-    type: String,
-    required: true,
-  },
-  details: mongoose.Schema.Types.Mixed,
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-const Activity = mongoose.model("Activity", activitySchema);
-
-const quizCompletionSchema = new mongoose.Schema({
-  quizId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Quiz",
-    required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-  },
-  answers: {
-    type: Map,
-    of: Boolean,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-const QuizCompletion = mongoose.model("QuizCompletion", quizCompletionSchema);
-
-const quizViewSchema = new mongoose.Schema({
-  quizId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Quiz",
-    required: true,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-const QuizView = mongoose.model("QuizView", quizViewSchema);
-
-const profileSchema = new mongoose.Schema({
-  auth0Id: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  name: {
-    type: String,
-    required: true,
-  },
-  emailPreferences: {
-    quizCompleted: {
-      type: Boolean,
-      default: true,
-    },
-    weeklyStats: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  theme: {
-    type: String,
-    enum: ["light", "dark", "system"],
-    default: "system",
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-const Profile = mongoose.model("Profile", profileSchema);
-
 // Middleware pentru a obține/crea user-ul din MongoDB bazat pe Auth0 ID
 const getUserMiddleware = async (req, res, next) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
-    console.log("Auth0 payload:", req.auth?.payload);
-
     if (!auth0Id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    // Debug logging
+    console.log("Full Auth0 Payload:", req.auth.payload);
+
     let user = await User.findOne({ auth0Id });
 
     if (!user) {
-      // Extragem email-ul din payload-ul Auth0
       const email =
         req.auth.payload.email ||
         req.auth.payload["https://example.com/email"] ||
-        `${auth0Id.split("|")[1]}@placeholder.com`;
+        `${auth0Id}@placeholder.com`;
 
       const name =
         req.auth.payload.name ||
@@ -293,25 +108,28 @@ const getUserMiddleware = async (req, res, next) => {
       });
     }
 
-    console.log("User:", {
-      id: user._id,
-      auth0Id: user.auth0Id,
-      email: user.email,
-      name: user.name,
-    });
-
     req.user = user;
     next();
   } catch (error) {
     console.error("User middleware error:", error);
-    console.error("Auth payload:", req.auth?.payload);
     res.status(500).json({
       error: "Internal server error",
       details: error.message,
-      payload: req.auth?.payload,
     });
   }
 };
+
+app.post("/api/quiz/:id/view", async (req, res) => {
+  try {
+    await QuizView.create({
+      quizId: req.params.id,
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error recording quiz view:", error);
+    res.status(500).json({ error: "Error recording view" });
+  }
+});
 
 app.get("/api/profile", checkJwt, getUserMiddleware, async (req, res) => {
   try {
@@ -324,7 +142,6 @@ app.get("/api/profile", checkJwt, getUserMiddleware, async (req, res) => {
       });
     }
 
-    // Calculează statisticile
     const stats = {
       totalQuizzes: await Quiz.countDocuments({ createdBy: req.user.auth0Id }),
       totalQuestions: await Question.countDocuments({
@@ -461,11 +278,16 @@ app.get("/api/quiz/:id", async (req, res) => {
       return res.status(404).json({ error: "Quiz not found or not published" });
     }
 
-    // Transformăm datele pentru interfața publică
+    // Înregistrăm vizualizarea
+    await QuizView.create({
+      quizId: req.params.id,
+    });
+
     const publicQuiz = {
       _id: quiz._id,
       title: quiz.title,
       description: quiz.description,
+      type: quiz.type, // Adăugăm și tipul
       questions: quiz.questions.map((q) => ({
         _id: q.question._id,
         text: q.question.text,
@@ -657,6 +479,14 @@ app.post("/api/quiz/submit", async (req, res) => {
       return res.status(404).json({ error: "Quiz not found" });
     }
 
+    if (quiz.type === "statistical") {
+      return res.status(400).json({
+        error: "Invalid submission type",
+        message:
+          "Please use /api/quiz/statistical/submit for statistical quizzes",
+      });
+    }
+
     // Salvăm completarea
     const savedCompletion = await QuizCompletion.create({
       quizId,
@@ -702,17 +532,26 @@ app.post("/api/quiz/submit", async (req, res) => {
 // Creare quiz nou
 app.post("/api/quizzes", checkJwt, getUserMiddleware, async (req, res) => {
   try {
-    console.log("Creating quiz for user:", req.user.auth0Id);
-    console.log("Quiz data:", req.body);
-
-    const quiz = new Quiz({
+    const quizData = {
       ...req.body,
       createdBy: req.user.auth0Id,
       questions: [],
-    });
+      type: req.body.type || "self-evaluation",
+    };
 
+    const quiz = new Quiz(quizData);
     await quiz.save();
-    console.log("Quiz created:", quiz._id);
+
+    await Activity.create({
+      type: "quiz-created",
+      userId: req.user.auth0Id,
+      title: `Quiz nou creat: ${quiz.title}`,
+      details: {
+        quizId: quiz._id,
+        quizTitle: quiz.title,
+        quizType: quiz.type,
+      },
+    });
 
     res.json(quiz);
   } catch (error) {
@@ -817,6 +656,105 @@ app.delete(
     }
   }
 );
+
+app.post("/api/quiz/statistical/submit", async (req, res) => {
+  try {
+    const { quizId, answers, demographics, respondentId } = req.body;
+
+    // Verificăm dacă quiz-ul există și este de tip statistic
+    const quiz = await Quiz.findById(quizId);
+    if (!quiz) {
+      return res.status(404).json({ error: "Quiz not found" });
+    }
+    if (quiz.type !== "statistical") {
+      return res.status(400).json({ error: "This quiz is not statistical" });
+    }
+
+    // Validăm datele demografice dacă sunt necesare
+    if (quiz.settings?.statistical?.collectDemographics) {
+      const requiredFields = quiz.settings.statistical.demographicFields
+        .filter((field) => field.required)
+        .map((field) => field.name);
+
+      const missingFields = requiredFields.filter(
+        (field) => !demographics?.[field]
+      );
+      if (missingFields.length > 0) {
+        return res.status(400).json({
+          error: "Missing required demographic fields",
+          fields: missingFields,
+        });
+      }
+    }
+
+    // Salvăm răspunsul statistic
+    const response = await StatisticalResponse.create({
+      quizId,
+      respondentId: respondentId || "anonymous",
+      demographics: new Map(Object.entries(demographics || {})),
+      answers: new Map(Object.entries(answers)),
+    });
+
+    // Înregistrăm activitatea
+    await Activity.create({
+      type: "quiz-completed",
+      userId: quiz.createdBy,
+      title: `Quiz completat: ${quiz.title}`,
+      details: {
+        quizId: quiz._id,
+        quizTitle: quiz.title,
+        responseId: response._id,
+        isStatistical: true,
+        respondentId: respondentId || "anonymous",
+      },
+    });
+
+    // Returnăm statistici dacă e setat să le arate după completare
+    if (quiz.settings?.statistical?.resultsVisibility === "after-completion") {
+      const statistics = await QuizStatisticsService.getQuizStatistics(quizId);
+      return res.json({
+        success: true,
+        statistics,
+        responseId: response._id,
+      });
+    }
+
+    res.json({
+      success: true,
+      responseId: response._id,
+    });
+  } catch (error) {
+    console.error("Error submitting statistical quiz:", error);
+    res.status(500).json({
+      error: "Error submitting quiz results",
+      details: error.message,
+    });
+  }
+});
+
+// Rută pentru obținerea rezultatelor publice ale unui quiz statistic
+app.get("/api/quiz/:id/public-stats", async (req, res) => {
+  try {
+    const quiz = await Quiz.findById(req.params.id);
+
+    if (!quiz || !quiz.isPublished) {
+      return res.status(404).json({ error: "Quiz not found or not published" });
+    }
+
+    if (
+      quiz.type !== "statistical" ||
+      quiz.settings?.statistical?.resultsVisibility !== "public"
+    ) {
+      return res.status(403).json({ error: "Statistics not available" });
+    }
+
+    const statistics = await QuizStatisticsService.getQuizStatistics(quiz._id);
+    res.json(statistics);
+  } catch (error) {
+    console.error("Error fetching public statistics:", error);
+    res.status(500).json({ error: "Error fetching statistics" });
+  }
+});
 
 // Rută publică pentru vizualizarea unui quiz
 app.get("/api/public/quizzes/:id", async (req, res) => {

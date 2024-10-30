@@ -18,9 +18,9 @@
               </svg>
             </span>
           </div>
-          <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ sortedQuizzes.length }}</p>
+          <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ sortedQuizzes?.length || 0 }}</p>
           <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            {{ publishedQuizzes.length }} publicate
+            {{ publishedQuizzes?.length || 0 }} publicate
           </p>
         </div>
 
@@ -89,7 +89,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907" />
                 </svg>
-                {{ quiz.questions.length }} întrebări
+                {{ quiz.questions?.length || 0 }} întrebări
               </div>
               <div class="flex items-center">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,31 +138,86 @@
         <h3 class="text-lg font-medium dark:text-gray-100">Quiz Nou</h3>
       </template>
 
-      <div class="space-y-4">
+      <div class="space-y-6">
+        <!-- Tip Quiz -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Tip Quiz
+          </label>
+          <select v-model="newQuiz.type"
+            class="w-full px-4 py-2 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary dark:text-white">
+            <option value="self-evaluation">Auto-evaluare</option>
+            <option value="statistical">Statistic</option>
+          </select>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ quizTypeDescription }}
+          </p>
+        </div>
+
+        <!-- Titlu -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Titlu
           </label>
           <input v-model="newQuiz.title" type="text"
-            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-dark-card dark:text-gray-100 shadow-sm focus:border-primary focus:ring-primary" />
+            class="w-full px-4 py-2 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary dark:text-white" />
         </div>
 
+        <!-- Descriere -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Descriere
           </label>
           <textarea v-model="newQuiz.description" rows="3"
-            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-dark-card dark:text-gray-100 shadow-sm focus:border-primary focus:ring-primary"></textarea>
+            class="w-full px-4 py-2 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary dark:text-white"></textarea>
+        </div>
+
+        <!-- Setări pentru quiz statistic -->
+        <div v-if="newQuiz.type === 'statistical'" class="space-y-4">
+          <h4 class="font-medium text-gray-900 dark:text-white">Setări Statistici</h4>
+
+          <div class="space-y-2">
+            <!-- Colectare date demografice -->
+            <label class="flex items-center">
+              <input type="checkbox" v-model="newQuiz.settings.statistical.collectDemographics"
+                class="rounded border-gray-300 text-primary focus:ring-primary" />
+              <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                Colectează date demografice
+              </span>
+            </label>
+
+            <!-- Vizibilitate rezultate -->
+            <div class="mt-4">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Vizibilitate Rezultate
+              </label>
+              <select v-model="newQuiz.settings.statistical.resultsVisibility"
+                class="w-full px-4 py-2 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary dark:text-white">
+                <option value="private">Private (doar admin)</option>
+                <option value="after-completion">După completare</option>
+                <option value="public">Public</option>
+              </select>
+            </div>
+
+            <!-- Permitere răspunsuri anonime -->
+            <label class="flex items-center mt-2">
+              <input type="checkbox" v-model="newQuiz.settings.statistical.allowAnonymous"
+                class="rounded border-gray-300 text-primary focus:ring-primary" />
+              <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                Permite răspunsuri anonime
+              </span>
+            </label>
+          </div>
         </div>
       </div>
 
       <template #footer>
-        <div class="flex justify-end space-x-3">
+        <div class="flex justify-end gap-3">
           <button @click="closeCreateModal"
-            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
             Anulează
           </button>
-          <button @click="submitNewQuiz" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+          <button @click="submitNewQuiz" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
             :disabled="!newQuiz.title">
             Creează
           </button>
@@ -187,11 +242,28 @@ const quizzes = ref([])
 const showCreateModal = ref(false)
 const newQuiz = ref({
   title: '',
-  description: ''
-})
+  description: '',
+  type: 'self-evaluation',
+  settings: {
+    statistical: {
+      collectDemographics: false,
+      allowAnonymous: true,
+      resultsVisibility: 'after-completion',
+      demographicFields: []
+    }
+  }
+});
+
+const quizTypeDescription = computed(() => {
+  if (newQuiz.value.type === 'statistical') {
+    return 'Quiz pentru colectare de date și analiză statistică. Permite vizualizarea rezultatelor agregate și demografice.';
+  }
+  return 'Quiz clasic pentru auto-evaluare, cu feedback personalizat pentru fiecare răspuns.';
+});
 
 // Sortăm quizurile - publicate primele
 const sortedQuizzes = computed(() => {
+  if (!quizzes.value) return [];
   return [...quizzes.value].sort((a, b) => {
     if (a.isPublished === b.isPublished) {
       return new Date(b.createdAt) - new Date(a.createdAt);
@@ -200,17 +272,20 @@ const sortedQuizzes = computed(() => {
   });
 });
 
-const publishedQuizzes = computed(() =>
-  quizzes.value.filter(q => q.isPublished)
-)
+const publishedQuizzes = computed(() => {
+  if (!quizzes.value) return [];
+  return quizzes.value.filter(q => q.isPublished);
+})
 
-const totalQuestions = computed(() =>
-  quizzes.value.reduce((sum, quiz) => sum + quiz.questions.length, 0)
-)
+const totalQuestions = computed(() => {
+  if (!quizzes.value) return 0;
+  return quizzes.value.reduce((sum, quiz) => sum + (quiz.questions?.length || 0), 0);
+})
 
-const totalCompletions = computed(() =>
-  quizzes.value.reduce((sum, quiz) => sum + (quiz.completions || 0), 0)
-)
+const totalCompletions = computed(() => {
+  if (!quizzes.value) return 0;
+  return quizzes.value.reduce((sum, quiz) => sum + (quiz.completions || 0), 0);
+})
 
 const loadQuizzes = async () => {
   try {
@@ -223,6 +298,7 @@ const loadQuizzes = async () => {
     quizzes.value = response.data
   } catch (error) {
     console.error('Error loading quizzes:', error)
+    quizzes.value = []
   }
 }
 
@@ -234,13 +310,22 @@ const closeCreateModal = () => {
   showCreateModal.value = false
   newQuiz.value = {
     title: '',
-    description: ''
+    description: '',
+    type: 'self-evaluation',
+    settings: {
+      statistical: {
+        collectDemographics: false,
+        allowAnonymous: true,
+        resultsVisibility: 'after-completion',
+        demographicFields: []
+      }
+    }
   }
 }
 
 const submitNewQuiz = async () => {
   try {
-    const token = await getAccessTokenSilently()
+    const token = await getAccessTokenSilently();
     const response = await axios.post(
       `${API_URL}/quizzes`,
       newQuiz.value,
@@ -249,14 +334,14 @@ const submitNewQuiz = async () => {
           Authorization: `Bearer ${token}`
         }
       }
-    )
-    closeCreateModal()
-    router.push(`/quiz/${response.data._id}/edit`)
+    );
+    closeCreateModal();
+    router.push(`/quiz/${response.data._id}/edit`);
   } catch (error) {
-    console.error('Error creating quiz:', error)
-    alert('Eroare la crearea quiz-ului')
+    console.error('Error creating quiz:', error);
+    alert('Eroare la crearea quiz-ului');
   }
-}
+};
 
 const confirmDelete = async (quiz) => {
   if (!confirm(`Ești sigur că vrei să ștergi quiz-ul "${quiz.title}"? Această acțiune nu poate fi anulată.`)) {
